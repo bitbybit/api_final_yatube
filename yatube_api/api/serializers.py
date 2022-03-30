@@ -1,4 +1,5 @@
-from posts.models import Comment, Follow, Group, Post
+from django.db import IntegrityError
+from posts.models import Comment, Follow, Group, Post, User
 from rest_framework import serializers
 
 
@@ -39,9 +40,26 @@ class FollowSerializer(serializers.ModelSerializer):
         slug_field="username",
     )
     following = serializers.SlugRelatedField(
-        read_only=True,
+        queryset=User.objects.all(),
+        required=True,
         slug_field="username",
     )
+
+    def validate(self, attrs):
+        attrs["user"] = self.context["request"].user
+
+        if attrs["user"].id == attrs["following"].id:
+            raise serializers.ValidationError(
+                "Попытка подписаться на самого себя."
+            )
+
+        return attrs
+
+    def save(self, **kwargs):
+        try:
+            super().save(**kwargs)
+        except IntegrityError:
+            raise serializers.ValidationError("Подписка уже существует.")
 
     class Meta:
         model = Follow
